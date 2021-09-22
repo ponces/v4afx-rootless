@@ -4,23 +4,23 @@
 ## AnyKernel setup
 # begin properties
 properties() { '
-kernel.string=ExampleKernel by osm0sis @ xda-developers
-do.devicecheck=1
+kernel.string=ViPER4Android FX Rootless Installer
+do.devicecheck=0
 do.modules=0
 do.systemless=1
 do.cleanup=1
 do.cleanuponabort=0
-device.name1=maguro
-device.name2=toro
-device.name3=toroplus
-device.name4=tuna
+device.name1=
+device.name2=
+device.name3=
+device.name4=
 device.name5=
 supported.versions=
 supported.patchlevels=
 '; } # end properties
 
 # shell variables
-block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;
+block=auto;
 is_slot_device=0;
 ramdisk_compression=auto;
 
@@ -32,49 +32,67 @@ ramdisk_compression=auto;
 
 ## AnyKernel file attributes
 # set permissions/ownership for included ramdisk files
-set_perm_recursive 0 0 755 644 $ramdisk/*;
-set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
+#set_perm_recursive 0 0 755 644 $ramdisk/*;
+#set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
 
 
-## AnyKernel boot install
-dump_boot;
+## AnyKernel install
+install_viper4android() {
+  backup_file /system/etc/selinux/plat_sepolicy.cil
+  backup_file /system/etc/selinux/plat_and_mapping_sepolicy.cil.sha256
+  echo "" > /system/etc/selinux/plat_and_mapping_sepolicy.cil.sha256
+  echo "(allow hal_audio_default hal_audio_default (process (execmem)))" >> /system/etc/selinux/plat_sepolicy.cil
 
-# begin ramdisk changes
+  mkdir -p /system/priv-app/ViPER4AndroidFX
+  cp -f $patch/ViPER4AndroidFX.apk /system/priv-app/ViPER4AndroidFX/ViPER4AndroidFX.apk
+  cp -f $patch/libv4a_fx.so /vendor/lib/soundfx/libv4a_fx.so
+  cp -f $patch/init.v4afx.rc /system/etc/init/init.v4afx.rc
+  cp -f $patch/v4afx.sh /system/bin/v4afx.sh
+  chmod 0644 /system/priv-app/ViPER4AndroidFX/ViPER4AndroidFX.apk
+  chmod 0644 /vendor/lib/soundfx/libv4a_fx.so
+  chmod 0644 /system/etc/init/init.v4afx.rc
+  chmod 0755 /system/priv-app/ViPER4AndroidFX
+  chmod 0755 /system/bin/v4afx.sh
+  chown root:shell /system/bin/v4afx.sh
 
-# init.rc
-backup_file init.rc;
-replace_string init.rc "cpuctl cpu,timer_slack" "mount cgroup none /dev/cpuctl cpu" "mount cgroup none /dev/cpuctl cpu,timer_slack";
+  [ -f /system/lib/libstdc++.so ] && [ ! -f /vendor/lib/libstdc++.so ] && cp -f /system/lib/libstdc++.so /vendor/lib/libstdc++.so
 
-# init.tuna.rc
-backup_file init.tuna.rc;
-insert_line init.tuna.rc "nodiratime barrier=0" after "mount_all /fstab.tuna" "\tmount ext4 /dev/block/platform/omap/omap_hsmmc.0/by-name/userdata /data remount nosuid nodev noatime nodiratime barrier=0";
-append_file init.tuna.rc "bootscript" init.tuna;
+  find -L /system -type f -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" | while read FILE
+  do
+    sed -i "/v4a_standard_fx {/,/}/d" $FILE
+    sed -i "/v4a_fx {/,/}/d" $FILE
+    sed -i "/v4a_standard_fx/d" $FILE
+    sed -i "/v4a_fx/d" $FILE
+    sed -i "s/^effects {/effects {\n  v4a_standard_fx {\n    library v4a_fx\n    uuid 41d3c987-e6cf-11e3-a88a-11aba5d5c51b\n  }/g" $FILE
+    sed -i "s/^libraries {/libraries {\n  v4a_fx {\n    path \/vendor\/lib\/soundfx\/libv4a_fx.so\n  }/g" $FILE
+    sed -i "/<libraries>/ a\        <library name=\"v4a_fx\" path=\"libv4a_fx.so\"\/>" $FILE
+    sed -i "/<effects>/ a\        <effect name=\"v4a_standard_fx\" library=\"v4a_fx\" uuid=\"41d3c987-e6cf-11e3-a88a-11aba5d5c51b\"\/>" $FILE
+  done
+}
 
-# fstab.tuna
-backup_file fstab.tuna;
-patch_fstab fstab.tuna /system ext4 options "noatime,barrier=1" "noatime,nodiratime,barrier=0";
-patch_fstab fstab.tuna /cache ext4 options "barrier=1" "barrier=0,nomblk_io_submit";
-patch_fstab fstab.tuna /data ext4 options "data=ordered" "nomblk_io_submit,data=writeback";
-append_file fstab.tuna "usbdisk" fstab;
+uninstall_viper4android() {
+  restore_file /system/etc/selinux/plat_sepolicy.cil
+  restore_file /system/etc/selinux/plat_and_mapping_sepolicy.cil.sha256
 
-# end ramdisk changes
+  rm -rf /system/priv-app/ViPER4AndroidFX
+  rm -rf /vendor/lib/soundfx/libv4a_fx.so
+  rm -rf /system/etc/init/init.v4afx.rc
+  rm -rf /system/bin/v4afx.sh
 
-write_boot;
-## end boot install
+  [ -f /system/lib/libstdc++.so ] && [ -f /vendor/lib/libstdc++.so ] && rm -rf /vendor/lib/libstdc++.so
 
+  find -L /system -type f -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" | while read FILE
+  do
+    sed -i "/v4a_standard_fx {/,/}/d" $FILE
+    sed -i "/v4a_fx {/,/}/d" $FILE
+    sed -i "/v4a_standard_fx/d" $FILE
+    sed -i "/v4a_fx/d" $FILE
+  done
+}
 
-# shell variables
-#block=vendor_boot;
-#is_slot_device=1;
-#ramdisk_compression=auto;
-
-# reset for vendor_boot patching
-#reset_ak;
-
-
-## AnyKernel vendor_boot install
-#split_boot; # skip unpack/repack ramdisk since we don't need vendor_ramdisk access
-
-#flash_boot;
-## end vendor_boot install
-
+if [ ! -d /system/priv-app/ViPER4AndroidFX ]
+then
+  install_viper4android
+else
+  uninstall_viper4android
+fi

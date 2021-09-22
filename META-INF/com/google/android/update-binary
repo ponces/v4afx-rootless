@@ -117,11 +117,11 @@ mount_all() {
     $BB mount /data && UMOUNT_DATA=1;
   fi;
   (for mount in /vendor /product /system_ext /persist; do
-    $BB mount -o ro -t auto $mount;
+    $BB mount -o rw -t auto $mount;
   done) 2>/dev/null;
   setup_mountpoint $ANDROID_ROOT;
   if ! is_mounted $ANDROID_ROOT; then
-    $BB mount -o ro -t auto $ANDROID_ROOT 2>/dev/null;
+    $BB mount -o rw -t auto $ANDROID_ROOT 2>/dev/null;
   fi;
   byname=bootdevice/by-name;
   [ -d /dev/block/$byname ] || byname=$($BB find /dev/block/platform -type d -name by-name 2>/dev/null | $BB head -n1 | $BB cut -d/ -f4-);
@@ -132,7 +132,7 @@ mount_all() {
     /system)
       if ! is_mounted /system && ! is_mounted /system_root; then
         setup_mountpoint /system_root;
-        $BB mount -o ro -t auto /system_root;
+        $BB mount -o rw -t auto /system_root;
       elif [ -f /system/system/build.prop ]; then
         setup_mountpoint /system_root;
         $BB mount --move /system /system_root;
@@ -140,7 +140,7 @@ mount_all() {
       if [ $? != 0 ]; then
         ($BB umount /system;
         $BB umount -l /system) 2>/dev/null;
-        $BB mount -o ro -t auto /dev/block/$byname/system$slot /system_root;
+        $BB mount -o rw -t auto /dev/block/$byname/system$slot /system_root;
       fi;
     ;;
   esac;
@@ -148,7 +148,7 @@ mount_all() {
   for mount in /vendor /product /system_ext; do
     if ! is_mounted $mount && [ -L /system$mount -o -L /system_root$system$mount ]; then
       setup_mountpoint $mount;
-      $BB mount -o ro -t auto /dev/block/$byname$mount$slot $mount;
+      $BB mount -o rw -t auto /dev/block/$byname$mount$slot $mount;
     fi;
   done;
   if is_mounted /system_root; then
@@ -157,7 +157,7 @@ mount_all() {
   fi;
   if ! is_mounted /persist && [ -e /dev/block/bootdevice/by-name/persist ]; then
     setup_mountpoint /persist;
-    $BB mount -o ro -t auto /dev/block/bootdevice/by-name/persist /persist;
+    $BB mount -o rw -t auto /dev/block/bootdevice/by-name/persist /persist;
   fi;
 }
 umount_all() {
